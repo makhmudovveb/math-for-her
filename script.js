@@ -850,11 +850,11 @@ function normalizeNickname(value) {
   const nickname = value.trim().toLowerCase();
 
   if (isAdminName(nickname)) {
-    return "динозаврик";
+    return "Динозаврик";
   }
 
   if (isQueenName(nickname)) {
-    return "мендальноглазая";
+    return "Мендальноглазая";
   }
 
   return nickname;
@@ -864,7 +864,7 @@ function getProfileLabel(value) {
   const nickname = value.trim().toLowerCase();
 
   if (isAdminName(nickname)) {
-    return "динозаврик";
+    return "Динозаврик";
   }
 
   if (isQueenName(nickname)) {
@@ -875,11 +875,11 @@ function getProfileLabel(value) {
 }
 
 function isAdminName(value) {
-  return value.trim().toLowerCase() === "динозаврик";
+  return value.trim().toLowerCase() === "Динозаврик";
 }
 
 function isQueenName(value) {
-  return value.trim().toLowerCase() === "мендальноглазая";
+  return value.trim().toLowerCase() === "Мендальноглазая";
 }
 
 function canOpenManage() {
