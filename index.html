@@ -112,7 +112,7 @@
         <div class="manage-grid">
           <form class="editor" id="questionForm">
             <div class="panel-head">
-              <h2>Новое задание</h2>
+              <h2 id="formTitle">Новое задание</h2>
               <span>4 варианта</span>
             </div>
 
@@ -181,7 +181,10 @@
               </select>
             </label>
 
-            <button class="primary" type="submit">Добавить задание</button>
+            <div class="form-actions">
+              <button class="primary" type="submit" id="saveQuestionBtn">Добавить задание</button>
+              <button class="ghost is-hidden" type="button" id="cancelEditBtn">Отменить</button>
+            </div>
           </form>
 
           <section class="library" aria-label="Все задания">

@@ -33,6 +33,7 @@ const state = {
   checked: {},
   revealed: {},
   pendingImageData: "",
+  editingQuestionId: null,
   timerSeconds: 0,
   timerId: null,
 };
@@ -63,6 +64,9 @@ const els = {
   timerBtn: document.querySelector("#timerBtn"),
   resetTimerBtn: document.querySelector("#resetTimerBtn"),
   form: document.querySelector("#questionForm"),
+  formTitle: document.querySelector("#formTitle"),
+  saveQuestionBtn: document.querySelector("#saveQuestionBtn"),
+  cancelEditBtn: document.querySelector("#cancelEditBtn"),
   questionInput: document.querySelector("#questionInput"),
   topicInput: document.querySelector("#topicInput"),
   imageUrlInput: document.querySelector("#imageUrlInput"),
@@ -99,6 +103,7 @@ function init() {
   els.resetTimerBtn.addEventListener("click", resetTimer);
   els.refreshBtn.addEventListener("click", loadQuestions);
   els.form.addEventListener("submit", handleCreate);
+  els.cancelEditBtn.addEventListener("click", cancelEdit);
   els.imageUrlInput.addEventListener("input", updateImagePreviewFromUrl);
   els.imageFileInput.addEventListener("change", handleImageFile);
   els.clearImageBtn.addEventListener("click", clearImage);
@@ -521,14 +526,15 @@ async function handleCreate(event) {
   }
 
   try {
-    await request(MOKKY_URL, {
-      method: "POST",
+    const isEditing = Boolean(state.editingQuestionId);
+    const url = isEditing ? `${MOKKY_URL}/${state.editingQuestionId}` : MOKKY_URL;
+    await request(url, {
+      method: isEditing ? "PATCH" : "POST",
       body: JSON.stringify(newQuestion),
     });
-    els.form.reset();
-    clearImage();
+    resetQuestionForm();
     state.activeTopic = newQuestion.topic;
-    setStatus("Задание добавлено.");
+    setStatus(isEditing ? "Задание изменено." : "Задание добавлено.");
     await loadQuestions();
     switchView("quiz");
   } catch (error) {
@@ -558,16 +564,61 @@ function renderLibrary() {
       <small>${escapeHtml(question.topic || "Математика")} | Ответ: ${escapeHtml(correctAnswer)}</small>
     `;
 
+    const actions = document.createElement("div");
+    actions.className = "library-actions";
+
+    const editButton = document.createElement("button");
+    editButton.className = "edit-btn";
+    editButton.type = "button";
+    editButton.textContent = "Изменить";
+    editButton.addEventListener("click", () => startEditQuestion(question));
+
     const deleteButton = document.createElement("button");
     deleteButton.className = "delete-btn";
     deleteButton.type = "button";
     deleteButton.textContent = "Удалить";
     deleteButton.addEventListener("click", () => deleteQuestion(question.id));
-    item.append(deleteButton);
+
+    actions.append(editButton, deleteButton);
+    item.append(actions);
     els.libraryList.append(item);
   });
 
   typesetMath(els.libraryList);
+}
+
+function startEditQuestion(question) {
+  state.editingQuestionId = question.id;
+  state.pendingImageData = "";
+  els.formTitle.textContent = "Изменить задание";
+  els.saveQuestionBtn.textContent = "Сохранить изменения";
+  els.cancelEditBtn.classList.remove("is-hidden");
+  els.questionInput.value = question.question || "";
+  els.topicInput.value = question.topic || "";
+  els.imageUrlInput.value = question.imageUrl || "";
+  els.imageFileInput.value = "";
+  renderImagePreview(question.imageUrl || "");
+
+  [...els.optionInputs].forEach((input, index) => {
+    input.value = question.options?.[index] || "";
+  });
+
+  els.correctInput.value = String(question.correctIndex ?? 0);
+  switchView("manage");
+  els.questionInput.focus();
+}
+
+function cancelEdit() {
+  resetQuestionForm();
+}
+
+function resetQuestionForm() {
+  state.editingQuestionId = null;
+  els.form.reset();
+  clearImage();
+  els.formTitle.textContent = "Новое задание";
+  els.saveQuestionBtn.textContent = "Добавить задание";
+  els.cancelEditBtn.classList.add("is-hidden");
 }
 
 async function deleteQuestion(id) {

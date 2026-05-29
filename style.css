@@ -553,6 +553,13 @@ h2 {
   justify-items: start;
 }
 
+.form-actions,
+.library-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .check-variant {
   width: 100%;
   margin-top: 18px;
@@ -678,6 +685,16 @@ textarea:focus {
   border-color: #f0c5c5;
   background: #fff;
   color: var(--danger);
+  font-weight: 800;
+}
+
+.edit-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--accent);
   font-weight: 800;
 }
 
