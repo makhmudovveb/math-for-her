@@ -2,7 +2,7 @@ const MOKKY_URL = "https://d9d7ebd7cf0cd0bb.mokky.dev/questions";
 const PROGRESS_URL = getSiblingResourceUrl(MOKKY_URL, "progress");
 const PROFILE_STORAGE_KEY = "math-quiz-profile-name";
 const ADMIN_PASSWORD = "dinozavrik";
-const QUEEN_PASSWORD = "поступлю";
+const QUEEN_PASSWORD = "я обязательно поступлю";
 
 const demoQuestions = [
   {
