@@ -153,6 +153,7 @@ h2 {
 .question-chip,
 .delete-btn,
 .option {
+  text-transform: capitalize;
   min-height: 42px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -216,6 +217,9 @@ h2 {
   grid-template-columns: 1fr auto;
   align-items: end;
   gap: 12px;
+}
+#profileName {
+  text-transform: capitalize;
 }
 
 .profile-note {
