@@ -1,0 +1,804 @@
+const MOKKY_URL = "https://d9d7ebd7cf0cd0bb.mokky.dev/questions";
+const PROGRESS_URL = getSiblingResourceUrl(MOKKY_URL, "progress");
+const PROFILE_STORAGE_KEY = "math-quiz-profile-name";
+
+const demoQuestions = [
+  {
+    id: "demo-1",
+    question: "Сколько будет 12 x 8?",
+    topic: "30 день",
+    imageUrl: "",
+    options: ["86", "96", "108", "92"],
+    correctIndex: 1,
+  },
+  {
+    id: "demo-2",
+    question: "Реши: 45 + 27",
+    topic: "30 день",
+    imageUrl: "",
+    options: ["62", "72", "74", "82"],
+    correctIndex: 1,
+  },
+];
+
+const state = {
+  questions: [],
+  activeTopic: "",
+  profile: null,
+  profileLabel: "",
+  isAdmin: false,
+  progressId: null,
+  solved: {},
+  answers: {},
+  checked: {},
+  revealed: {},
+  pendingImageData: "",
+  timerSeconds: 0,
+  timerId: null,
+};
+
+const els = {
+  status: document.querySelector("#status"),
+  profileBadge: document.querySelector("#profileBadge"),
+  profileName: document.querySelector("#profileName"),
+  resetProfileBtn: document.querySelector("#resetProfileBtn"),
+  profilePanel: document.querySelector("#profilePanel"),
+  profileForm: document.querySelector("#profileForm"),
+  nicknameInput: document.querySelector("#nicknameInput"),
+  profileNote: document.querySelector("#profileNote"),
+  quickNameBtns: document.querySelectorAll("[data-name]"),
+  tabs: document.querySelectorAll(".tab"),
+  quizView: document.querySelector("#quizView"),
+  manageView: document.querySelector("#manageView"),
+  questionCount: document.querySelector("#questionCount"),
+  topicList: document.querySelector("#topicList"),
+  totalProgress: document.querySelector("#totalProgress"),
+  encourageText: document.querySelector("#encourageText"),
+  questionButtons: document.querySelector("#questionButtons"),
+  variantTitle: document.querySelector("#variantTitle"),
+  variantSummary: document.querySelector("#variantSummary"),
+  topicQuestions: document.querySelector("#topicQuestions"),
+  checkVariantBtn: document.querySelector("#checkVariantBtn"),
+  timerValue: document.querySelector("#timerValue"),
+  timerBtn: document.querySelector("#timerBtn"),
+  resetTimerBtn: document.querySelector("#resetTimerBtn"),
+  form: document.querySelector("#questionForm"),
+  questionInput: document.querySelector("#questionInput"),
+  topicInput: document.querySelector("#topicInput"),
+  imageUrlInput: document.querySelector("#imageUrlInput"),
+  imageFileInput: document.querySelector("#imageFileInput"),
+  imagePreviewWrap: document.querySelector("#imagePreviewWrap"),
+  imagePreview: document.querySelector("#imagePreview"),
+  clearImageBtn: document.querySelector("#clearImageBtn"),
+  optionInputs: document.querySelectorAll(".option-input"),
+  correctInput: document.querySelector("#correctInput"),
+  refreshBtn: document.querySelector("#refreshBtn"),
+  libraryList: document.querySelector("#libraryList"),
+};
+
+const letters = ["A", "B", "C", "D"];
+const apiEnabled = MOKKY_URL.trim().length > 0;
+
+init();
+
+function init() {
+  els.tabs.forEach((tab) => {
+    tab.addEventListener("click", () => switchView(tab.dataset.view));
+  });
+
+  els.profileForm.addEventListener("submit", handleProfile);
+  els.resetProfileBtn.addEventListener("click", resetProfile);
+  els.quickNameBtns.forEach((button) => {
+    button.addEventListener("click", () => {
+      els.nicknameInput.value = button.dataset.name;
+      els.profileForm.requestSubmit();
+    });
+  });
+  els.checkVariantBtn.addEventListener("click", checkVariant);
+  els.timerBtn.addEventListener("click", toggleTimer);
+  els.resetTimerBtn.addEventListener("click", resetTimer);
+  els.refreshBtn.addEventListener("click", loadQuestions);
+  els.form.addEventListener("submit", handleCreate);
+  els.imageUrlInput.addEventListener("input", updateImagePreviewFromUrl);
+  els.imageFileInput.addEventListener("change", handleImageFile);
+  els.clearImageBtn.addEventListener("click", clearImage);
+
+  loadQuestions();
+  loadSavedProfile();
+}
+
+async function loadQuestions() {
+  setStatus("Загружаю задания...");
+
+  try {
+    state.questions = apiEnabled ? await request(MOKKY_URL) : [...demoQuestions];
+    syncActiveTopic();
+    setStatus(
+      apiEnabled
+        ? "Задания загружены из Mokky API."
+        : "Демо-режим: вставь ссылку Mokky API в script.js, чтобы сохранять задания."
+    );
+  } catch (error) {
+    state.questions = [...demoQuestions];
+    syncActiveTopic();
+    setStatus("API пока недоступен, показываю демо-задания.");
+  }
+
+  render();
+}
+
+async function request(url, options = {}) {
+  const response = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+    ...options,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ошибка API: ${response.status}`);
+  }
+
+  return response.status === 204 ? null : response.json();
+}
+
+function switchView(viewName) {
+  els.tabs.forEach((tab) => {
+    tab.classList.toggle("is-active", tab.dataset.view === viewName);
+  });
+
+  els.quizView.classList.toggle("is-visible", viewName === "quiz");
+  els.manageView.classList.toggle("is-visible", viewName === "manage");
+}
+
+async function handleProfile(event) {
+  event.preventDefault();
+
+  const nickname = els.nicknameInput.value.trim();
+
+  if (!nickname) {
+    setStatus("Введи никнейм, чтобы я понимал, чей прогресс сохранять.");
+    return;
+  }
+
+  applyProfile(nickname);
+  localStorage.setItem(PROFILE_STORAGE_KEY, nickname);
+  await loadProgress();
+  render();
+}
+
+async function loadSavedProfile() {
+  const savedName = localStorage.getItem(PROFILE_STORAGE_KEY);
+
+  if (!savedName) {
+    return;
+  }
+
+  applyProfile(savedName);
+  await loadProgress();
+  render();
+}
+
+function applyProfile(name) {
+  const cleanName = name.trim();
+  state.profile = normalizeNickname(cleanName);
+  state.profileLabel = getProfileLabel(cleanName);
+  state.isAdmin = isAdminName(cleanName);
+}
+
+async function loadProgress() {
+  state.solved = {};
+  state.progressId = null;
+
+  if (!apiEnabled || !state.profile) {
+    renderProfile();
+    return;
+  }
+
+  try {
+    const records = await request(`${PROGRESS_URL}?nickname=${encodeURIComponent(state.profile)}`);
+    const record = Array.isArray(records) ? records[0] : null;
+
+    if (record) {
+      state.progressId = record.id;
+      state.solved = record.solved || {};
+    } else {
+      const created = await request(PROGRESS_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          nickname: state.profile,
+          solved: {},
+          createdAt: new Date().toISOString(),
+        }),
+      });
+      state.progressId = created.id;
+    }
+
+    renderProfile();
+    setStatus("Прогресс загружен. Можно спокойно решать дальше.");
+  } catch (error) {
+    renderProfile();
+    setStatus("Не удалось загрузить прогресс. Проверь, создан ли ресурс progress в Mokky.");
+  }
+}
+
+function render() {
+  renderProfile();
+  renderProgress();
+  renderQuestionButtons();
+  renderVariant();
+  renderLibrary();
+}
+
+function renderProfile() {
+  const ready = Boolean(state.profile);
+  els.profilePanel.classList.toggle("is-ready", ready);
+  els.profileBadge.classList.toggle("is-hidden", !ready);
+
+  if (ready) {
+    els.profileName.textContent = state.isAdmin
+      ? `${state.profileLabel} | админ`
+      : state.profileLabel;
+  }
+
+  document.body.classList.toggle("is-admin", state.isAdmin);
+
+  if (!state.isAdmin && els.manageView.classList.contains("is-visible")) {
+    switchView("quiz");
+  }
+}
+
+function resetProfile() {
+  localStorage.removeItem(PROFILE_STORAGE_KEY);
+  state.profile = null;
+  state.profileLabel = "";
+  state.isAdmin = false;
+  state.progressId = null;
+  state.solved = {};
+  els.nicknameInput.value = "";
+  render();
+}
+
+function renderProgress() {
+  const topics = getTopicProgress();
+  const solvedTotal = state.questions.filter((question) => isQuestionSolved(question.id)).length;
+
+  els.totalProgress.textContent = `${solvedTotal}/${state.questions.length}`;
+  els.encourageText.textContent = getEncourageText(topics, solvedTotal);
+  els.topicList.innerHTML = "";
+
+  topics.forEach((topic) => {
+    const percent = topic.total === 0 ? 0 : Math.round((topic.solved / topic.total) * 100);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = [
+      "topic-card",
+      topic.name === state.activeTopic ? "is-active" : "",
+      topic.solved === topic.total ? "is-done" : "",
+    ].filter(Boolean).join(" ");
+    card.innerHTML = `
+      <div class="topic-row">
+        <span class="topic-title">${escapeHtml(topic.name)}</span>
+        <span class="topic-badge">${topic.solved === topic.total ? "✓" : `${topic.solved}/${topic.total}`}</span>
+      </div>
+      <div class="topic-meter" aria-hidden="true"><span style="width: ${percent}%"></span></div>
+    `;
+    card.addEventListener("click", () => selectTopic(topic.name));
+    els.topicList.append(card);
+  });
+}
+
+function renderQuestionButtons() {
+  const questions = getActiveTopicQuestions();
+  els.questionCount.textContent = String(questions.length);
+  els.questionButtons.innerHTML = "";
+
+  questions.forEach((question, index) => {
+    const button = document.createElement("button");
+    button.className = [
+      "question-chip",
+      isQuestionSolved(question.id) ? "is-solved" : "",
+    ].filter(Boolean).join(" ");
+    button.type = "button";
+    button.textContent = `${isQuestionSolved(question.id) ? "✓ " : ""}${index + 1}. Вопрос`;
+    button.addEventListener("click", () => {
+      document.querySelector(`#question-${cssEscape(question.id)}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+    els.questionButtons.append(button);
+  });
+}
+
+function renderVariant() {
+  const questions = getActiveTopicQuestions();
+  const solved = questions.filter((question) => isQuestionSolved(question.id)).length;
+
+  els.variantTitle.textContent = state.activeTopic || "Выбери день";
+  els.variantSummary.textContent = questions.length
+    ? `В этом варианте ${questions.length} вопросов. Решено правильно: ${solved}/${questions.length}.`
+    : "В этом дне пока нет вопросов.";
+  els.checkVariantBtn.disabled = questions.length === 0;
+  els.topicQuestions.innerHTML = "";
+
+  questions.slice(0, 10).forEach((question, index) => {
+    els.topicQuestions.append(renderQuestionCard(question, index));
+  });
+}
+
+function renderQuestionCard(question, index) {
+  const card = document.createElement("section");
+  card.className = [
+    "question-card",
+    isQuestionSolved(question.id) ? "is-solved" : "",
+  ].filter(Boolean).join(" ");
+  card.id = `question-${question.id}`;
+
+  const imageMarkup = question.imageUrl
+    ? `<figure class="question-image"><img src="${escapeAttribute(question.imageUrl)}" alt="Изображение к вопросу ${index + 1}" loading="lazy" /></figure>`
+    : "";
+
+  const optionsMarkup = question.options
+    .map((option, optionIndex) => renderOption(question, option, optionIndex))
+    .join("");
+
+  const resultMarkup = renderQuestionResult(question);
+
+  card.innerHTML = `
+    <div class="question-meta">
+      <span>Вопрос ${index + 1}</span>
+      <span>${escapeHtml(question.topic || "Математика")}</span>
+    </div>
+    <h3>${escapeHtml(question.question)}</h3>
+    ${imageMarkup}
+    <div class="options">${optionsMarkup}</div>
+    ${resultMarkup}
+  `;
+
+  card.querySelectorAll(".option").forEach((button) => {
+    button.addEventListener("click", () => selectAnswer(question.id, Number(button.dataset.option)));
+  });
+
+  const revealButton = card.querySelector("[data-reveal]");
+  if (revealButton) {
+    revealButton.addEventListener("click", () => revealAnswer(question.id));
+  }
+
+  return card;
+}
+
+function renderOption(question, option, optionIndex) {
+  const selected = state.answers[question.id] === optionIndex;
+  const correct = Number(question.correctIndex) === optionIndex;
+  const checked = Boolean(state.checked[question.id]);
+  const solved = isQuestionSolved(question.id);
+  const revealed = Boolean(state.revealed[question.id]);
+  const wrongSelected = checked && selected && !correct;
+  const classes = [
+    "option",
+    selected ? "is-selected" : "",
+    wrongSelected ? "is-wrong" : "",
+    (solved || revealed) && correct ? "is-correct is-revealed" : "",
+    solved ? "is-locked" : "",
+  ].filter(Boolean).join(" ");
+
+  return `
+    <button class="${classes}" type="button" data-option="${optionIndex}" ${solved ? "disabled" : ""}>
+      <span class="option-letter">${letters[optionIndex]}</span>
+      <span>${escapeHtml(option)}</span>
+    </button>
+  `;
+}
+
+function renderQuestionResult(question) {
+  const checked = Boolean(state.checked[question.id]);
+  const selected = state.answers[question.id];
+  const isCorrect = selected === Number(question.correctIndex);
+
+  if (isQuestionSolved(question.id)) {
+    return `<p class="result ok">Уже решено правильно.</p>`;
+  }
+
+  if (!checked) {
+    return `<p class="result"></p>`;
+  }
+
+  if (isCorrect) {
+    return `<p class="result ok">Правильно! Отличная работа.</p>`;
+  }
+
+  return `
+    <div class="question-feedback">
+      <p class="result bad">Пока неверно. Можно выбрать другой вариант или посмотреть ответ.</p>
+      <button class="ghost" type="button" data-reveal="${escapeAttribute(question.id)}">
+        Показать правильный ответ
+      </button>
+    </div>
+  `;
+}
+
+function selectTopic(topicName) {
+  state.activeTopic = topicName;
+  render();
+}
+
+function selectAnswer(questionId, optionIndex) {
+  if (isQuestionSolved(questionId)) {
+    return;
+  }
+
+  state.answers[questionId] = optionIndex;
+  state.checked[questionId] = false;
+  state.revealed[questionId] = false;
+  renderVariant();
+  renderQuestionButtons();
+}
+
+async function checkVariant() {
+  stopTimer();
+  const questions = getActiveTopicQuestions();
+  const unanswered = questions.filter(
+    (question) => !isQuestionSolved(question.id) && state.answers[question.id] === undefined
+  );
+
+  if (unanswered.length > 0) {
+    setStatus(`Осталось выбрать ответ: ${unanswered.length}.`);
+  }
+
+  for (const question of questions) {
+    if (isQuestionSolved(question.id) || state.answers[question.id] === undefined) {
+      continue;
+    }
+
+    state.checked[question.id] = true;
+
+    if (state.answers[question.id] === Number(question.correctIndex)) {
+      await markQuestionSolved(question);
+    }
+  }
+
+  render();
+}
+
+function revealAnswer(questionId) {
+  state.revealed[questionId] = true;
+  renderVariant();
+}
+
+async function markQuestionSolved(question) {
+  if (!question || !question.id) {
+    return;
+  }
+
+  state.solved[question.id] = {
+    correct: true,
+    solvedAt: new Date().toISOString(),
+    topic: question.topic || "Математика",
+  };
+
+  if (!apiEnabled || !state.profile || !state.progressId) {
+    return;
+  }
+
+  try {
+    await request(`${PROGRESS_URL}/${state.progressId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        solved: state.solved,
+        updatedAt: new Date().toISOString(),
+      }),
+    });
+  } catch (error) {
+    setStatus("Ответ правильный, но прогресс не сохранился. Проверь ресурс progress.");
+  }
+}
+
+async function handleCreate(event) {
+  event.preventDefault();
+
+  const imageUrl = state.pendingImageData || els.imageUrlInput.value.trim();
+  const newQuestion = {
+    question: els.questionInput.value.trim(),
+    topic: els.topicInput.value.trim() || "30 день",
+    imageUrl,
+    options: [...els.optionInputs].map((input) => input.value.trim()),
+    correctIndex: Number(els.correctInput.value),
+  };
+
+  if (newQuestion.options.some((option) => option.length === 0)) {
+    setStatus("Заполни все варианты ответа.");
+    return;
+  }
+
+  if (!apiEnabled) {
+    setStatus("Сейчас демо-режим. Для сохранения вставь ссылку Mokky API в script.js.");
+    return;
+  }
+
+  try {
+    await request(MOKKY_URL, {
+      method: "POST",
+      body: JSON.stringify(newQuestion),
+    });
+    els.form.reset();
+    clearImage();
+    state.activeTopic = newQuestion.topic;
+    setStatus("Задание добавлено.");
+    await loadQuestions();
+    switchView("quiz");
+  } catch (error) {
+    setStatus("Не удалось добавить задание. Проверь ссылку Mokky API.");
+  }
+}
+
+function renderLibrary() {
+  els.libraryList.innerHTML = "";
+
+  if (state.questions.length === 0) {
+    els.libraryList.textContent = "Заданий пока нет.";
+    return;
+  }
+
+  state.questions.forEach((question) => {
+    const item = document.createElement("article");
+    item.className = "library-item";
+
+    const correctAnswer = question.options[Number(question.correctIndex)] || "";
+    const imageMarkup = question.imageUrl
+      ? `<img class="library-thumb" src="${escapeAttribute(question.imageUrl)}" alt="Картинка задания" loading="lazy" />`
+      : "";
+    item.innerHTML = `
+      <strong>${escapeHtml(question.question)}</strong>
+      ${imageMarkup}
+      <small>${escapeHtml(question.topic || "Математика")} | Ответ: ${escapeHtml(correctAnswer)}</small>
+    `;
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "delete-btn";
+    deleteButton.type = "button";
+    deleteButton.textContent = "Удалить";
+    deleteButton.addEventListener("click", () => deleteQuestion(question.id));
+    item.append(deleteButton);
+    els.libraryList.append(item);
+  });
+}
+
+async function deleteQuestion(id) {
+  if (!apiEnabled) {
+    setStatus("Удаление работает после подключения Mokky API.");
+    return;
+  }
+
+  try {
+    await request(`${MOKKY_URL}/${id}`, { method: "DELETE" });
+    setStatus("Задание удалено.");
+    await loadQuestions();
+  } catch (error) {
+    setStatus("Не удалось удалить задание. Проверь API.");
+  }
+}
+
+function toggleTimer() {
+  if (state.timerId) {
+    stopTimer("Продолжить таймер");
+    return;
+  }
+
+  state.timerId = setInterval(() => {
+    state.timerSeconds += 1;
+    renderTimer();
+  }, 1000);
+  els.timerBtn.textContent = "Пауза";
+}
+
+function stopTimer(buttonText = "Продолжить таймер") {
+  if (!state.timerId) {
+    return;
+  }
+
+  clearInterval(state.timerId);
+  state.timerId = null;
+  els.timerBtn.textContent = buttonText;
+}
+
+function resetTimer() {
+  stopTimer("Запустить таймер");
+  state.timerSeconds = 0;
+  renderTimer();
+}
+
+function renderTimer() {
+  const minutes = Math.floor(state.timerSeconds / 60);
+  const seconds = state.timerSeconds % 60;
+  els.timerValue.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function getTopics() {
+  return [...new Set(state.questions.map((question) => question.topic || "Математика"))];
+}
+
+function syncActiveTopic() {
+  const topics = getTopics();
+
+  if (!topics.includes(state.activeTopic)) {
+    state.activeTopic = topics[0] || "";
+  }
+}
+
+function getActiveTopicQuestions() {
+  return state.questions
+    .filter((question) => (question.topic || "Математика") === state.activeTopic)
+    .slice(0, 10);
+}
+
+function getTopicProgress() {
+  const map = new Map();
+
+  state.questions.forEach((question) => {
+    const name = question.topic || "Математика";
+
+    if (!map.has(name)) {
+      map.set(name, { name, total: 0, solved: 0 });
+    }
+
+    const topic = map.get(name);
+    topic.total += 1;
+
+    if (isQuestionSolved(question.id)) {
+      topic.solved += 1;
+    }
+  });
+
+  return [...map.values()];
+}
+
+function getEncourageText(topics, solvedTotal) {
+  if (!state.profile) {
+    return "Войди по никнейму, и я буду показывать прогресс по дням.";
+  }
+
+  if (state.questions.length === 0) {
+    return "Пока нет заданий, но место для побед уже готово.";
+  }
+
+  if (solvedTotal === state.questions.length) {
+    return "Все решено правильно. Королева математики сегодня сияет.";
+  }
+
+  const activeTopic = topics.find((topic) => topic.name === state.activeTopic) || topics[0];
+  const left = activeTopic ? activeTopic.total - activeTopic.solved : state.questions.length - solvedTotal;
+
+  if (solvedTotal === 0) {
+    return "Начнем спокойно. Один правильный ответ, потом следующий.";
+  }
+
+  return `Давай, чутка осталось: в теме «${activeTopic.name}» еще ${left}. Я в тебя верю.`;
+}
+
+function isQuestionSolved(questionId) {
+  return Boolean(state.solved[questionId]?.correct);
+}
+
+function normalizeNickname(value) {
+  const nickname = value.trim().toLowerCase();
+  return isAdminName(nickname) ? "динозаврик" : "королева";
+}
+
+function getProfileLabel(value) {
+  const nickname = value.trim().toLowerCase();
+
+  if (isAdminName(nickname)) {
+    return "динозаврик";
+  }
+
+  if (nickname === "k") {
+    return "k";
+  }
+
+  return nickname || "королева";
+}
+
+function isAdminName(value) {
+  return value.trim().toLowerCase() === "динозаврик";
+}
+
+function setStatus(message) {
+  els.status.textContent = message;
+}
+
+function updateImagePreviewFromUrl() {
+  state.pendingImageData = "";
+  renderImagePreview(els.imageUrlInput.value.trim());
+}
+
+async function handleImageFile(event) {
+  const file = event.target.files[0];
+
+  if (!file) {
+    return;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    setStatus("Выбери файл картинки.");
+    return;
+  }
+
+  try {
+    state.pendingImageData = await compressImage(file);
+    els.imageUrlInput.value = "";
+    renderImagePreview(state.pendingImageData);
+    setStatus("Картинка готова к сохранению вместе с заданием.");
+  } catch (error) {
+    setStatus("Не получилось обработать картинку. Попробуй другое фото.");
+  }
+}
+
+function renderImagePreview(imageUrl) {
+  if (!imageUrl) {
+    els.imagePreview.removeAttribute("src");
+    els.imagePreviewWrap.classList.add("is-hidden");
+    return;
+  }
+
+  els.imagePreview.src = imageUrl;
+  els.imagePreviewWrap.classList.remove("is-hidden");
+}
+
+function clearImage() {
+  state.pendingImageData = "";
+  els.imageUrlInput.value = "";
+  els.imageFileInput.value = "";
+  renderImagePreview("");
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const maxWidth = 1200;
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+
+        const context = canvas.getContext("2d");
+        context.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function getSiblingResourceUrl(url, resourceName) {
+  const trimmed = url.replace(/\/+$/, "");
+  return trimmed.replace(/\/[^/]+$/, `/${resourceName}`);
+}
+
+function cssEscape(value) {
+  if (window.CSS?.escape) {
+    return CSS.escape(value);
+  }
+
+  return String(value).replaceAll('"', '\\"');
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replaceAll("`", "&#096;");
+}

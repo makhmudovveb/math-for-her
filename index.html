@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Математика для любимой</title>
+    <link rel="stylesheet" href="style.css" />
+    <script defer src="script.js"></script>
+  </head>
+  <body>
+    <main class="app">
+      <section class="topbar" aria-label="Навигация">
+        <div>
+          <p class="eyebrow">Тесты по математике</p>
+          <h1>Математика без спешки</h1>
+        </div>
+        <div class="top-actions">
+          <div class="profile-badge is-hidden" id="profileBadge">
+            <span>Сейчас решает</span>
+            <strong id="profileName">королева</strong>
+            <button class="link-btn" type="button" id="resetProfileBtn">сменить</button>
+          </div>
+          <div class="tabs" role="tablist" aria-label="Разделы">
+            <button class="tab is-active" type="button" data-view="quiz">Решать</button>
+            <button class="tab" type="button" data-view="manage">Добавить</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="profile-panel" id="profilePanel" aria-label="Вход">
+        <div>
+          <p class="eyebrow">Перед стартом</p>
+          <h2>Как тебя называть?</h2>
+        </div>
+        <p class="profile-note" id="profileNote">
+          Ты королева или предпочтешь просто k? Если это админ, выбирай динозаврик.
+          А если хочешь что-то другое, не думай, просто пиши.
+        </p>
+        <div class="quick-names" aria-label="Быстрый выбор имени">
+          <button class="ghost" type="button" data-name="королева">королева</button>
+          <button class="ghost" type="button" data-name="k">k</button>
+          <button class="ghost" type="button" data-name="динозаврик">динозаврик</button>
+        </div>
+        <form class="profile-form" id="profileForm">
+          <label>
+            Имя
+            <input id="nicknameInput" type="text" placeholder="Напиши имя" autocomplete="off" />
+          </label>
+          <button class="primary" type="submit">Начать</button>
+        </form>
+      </section>
+
+      <section class="status" id="status" role="status">Загружаю задания...</section>
+
+      <section class="view is-visible" id="quizView" aria-label="Прохождение теста">
+        <div class="quiz-layout">
+          <aside class="question-list" aria-label="Список заданий">
+            <div class="progress-box">
+              <div class="panel-head">
+                <h2>Дни</h2>
+                <span id="totalProgress">0/0</span>
+              </div>
+              <p class="encourage" id="encourageText">Сначала войди по никнейму.</p>
+              <div class="topic-list" id="topicList"></div>
+            </div>
+
+            <div class="panel-head">
+              <h2>Вопросы дня</h2>
+              <span id="questionCount">0</span>
+            </div>
+            <div class="question-buttons" id="questionButtons"></div>
+          </aside>
+
+          <article class="quiz-panel">
+            <div class="variant-head">
+              <div>
+                <p class="eyebrow">Вариант</p>
+                <h2 id="variantTitle">Выбери день</h2>
+              </div>
+              <div class="timer-box">
+                <span id="timerValue">00:00</span>
+                <div class="timer-actions">
+                  <button class="ghost" type="button" id="timerBtn">Запустить таймер</button>
+                  <button class="ghost" type="button" id="resetTimerBtn">Сброс</button>
+                </div>
+              </div>
+            </div>
+            <div class="variant-summary" id="variantSummary">
+              В одном варианте будет до 10 вопросов.
+            </div>
+            <div class="topic-questions" id="topicQuestions"></div>
+            <button class="primary check-variant" type="button" id="checkVariantBtn">
+              Проверить весь вариант
+            </button>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="manageView" aria-label="Управление заданиями">
+        <div class="manage-grid">
+          <form class="editor" id="questionForm">
+            <div class="panel-head">
+              <h2>Новое задание</h2>
+              <span>4 варианта</span>
+            </div>
+
+            <label>
+              Вопрос
+              <textarea
+                id="questionInput"
+                required
+                rows="3"
+                placeholder="Например: Сколько будет 12 × 8?"
+              ></textarea>
+            </label>
+
+            <label>
+              Тема
+              <input id="topicInput" type="text" placeholder="Например: 30 день" />
+            </label>
+
+            <div class="image-tools">
+              <label>
+                Ссылка на картинку
+                <input
+                  id="imageUrlInput"
+                  type="text"
+                  placeholder="https://.../grafik.png"
+                />
+              </label>
+
+              <label>
+                Или выбрать фото
+                <input id="imageFileInput" type="file" accept="image/*" />
+              </label>
+
+              <figure class="image-preview is-hidden" id="imagePreviewWrap">
+                <img id="imagePreview" alt="Предпросмотр картинки" />
+                <button class="ghost" type="button" id="clearImageBtn">Убрать картинку</button>
+              </figure>
+            </div>
+
+            <div class="answers-grid">
+              <label>
+                Вариант A
+                <input class="option-input" required type="text" placeholder="96" />
+              </label>
+              <label>
+                Вариант B
+                <input class="option-input" required type="text" placeholder="86" />
+              </label>
+              <label>
+                Вариант C
+                <input class="option-input" required type="text" placeholder="108" />
+              </label>
+              <label>
+                Вариант D
+                <input class="option-input" required type="text" placeholder="92" />
+              </label>
+            </div>
+
+            <label>
+              Правильный вариант
+              <select id="correctInput" required>
+                <option value="0">A</option>
+                <option value="1">B</option>
+                <option value="2">C</option>
+                <option value="3">D</option>
+              </select>
+            </label>
+
+            <button class="primary" type="submit">Добавить задание</button>
+          </form>
+
+          <section class="library" aria-label="Все задания">
+            <div class="panel-head">
+              <h2>Все задания</h2>
+              <button class="ghost" type="button" id="refreshBtn">Обновить</button>
+            </div>
+            <div class="library-list" id="libraryList"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
