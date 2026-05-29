@@ -1,6 +1,7 @@
 const MOKKY_URL = "https://d9d7ebd7cf0cd0bb.mokky.dev/questions";
 const PROGRESS_URL = getSiblingResourceUrl(MOKKY_URL, "progress");
 const PROFILE_STORAGE_KEY = "math-quiz-profile-name";
+const ADMIN_PASSWORD = "dinozavrik";
 
 const demoQuestions = [
   {
@@ -24,9 +25,11 @@ const demoQuestions = [
 const state = {
   questions: [],
   activeTopic: "",
+  manageTopic: "",
   profile: null,
   profileLabel: "",
   isAdmin: false,
+  adminUnlocked: false,
   progressId: null,
   solved: {},
   answers: {},
@@ -77,6 +80,7 @@ const els = {
   optionInputs: document.querySelectorAll(".option-input"),
   correctInput: document.querySelector("#correctInput"),
   refreshBtn: document.querySelector("#refreshBtn"),
+  manageTopicList: document.querySelector("#manageTopicList"),
   libraryList: document.querySelector("#libraryList"),
 };
 
@@ -118,6 +122,7 @@ async function loadQuestions() {
   try {
     state.questions = apiEnabled ? await request(MOKKY_URL) : [...demoQuestions];
     syncActiveTopic();
+    syncManageTopic();
     setStatus(
       apiEnabled
         ? "Задания загружены из Mokky API."
@@ -126,6 +131,7 @@ async function loadQuestions() {
   } catch (error) {
     state.questions = [...demoQuestions];
     syncActiveTopic();
+    syncManageTopic();
     setStatus("API пока недоступен, показываю демо-задания.");
   }
 
@@ -149,6 +155,10 @@ async function request(url, options = {}) {
 }
 
 function switchView(viewName) {
+  if (viewName === "manage" && !canOpenManage()) {
+    return;
+  }
+
   els.tabs.forEach((tab) => {
     tab.classList.toggle("is-active", tab.dataset.view === viewName);
   });
@@ -190,6 +200,7 @@ function applyProfile(name) {
   state.profile = normalizeNickname(cleanName);
   state.profileLabel = getProfileLabel(cleanName);
   state.isAdmin = isAdminName(cleanName);
+  state.adminUnlocked = false;
 }
 
 async function loadProgress() {
@@ -260,6 +271,7 @@ function resetProfile() {
   state.profile = null;
   state.profileLabel = "";
   state.isAdmin = false;
+  state.adminUnlocked = false;
   state.progressId = null;
   state.solved = {};
   els.nicknameInput.value = "";
@@ -534,6 +546,7 @@ async function handleCreate(event) {
     });
     resetQuestionForm();
     state.activeTopic = newQuestion.topic;
+    state.manageTopic = newQuestion.topic;
     setStatus(isEditing ? "Задание изменено." : "Задание добавлено.");
     await loadQuestions();
     switchView("quiz");
@@ -543,6 +556,7 @@ async function handleCreate(event) {
 }
 
 function renderLibrary() {
+  renderManageTopics();
   els.libraryList.innerHTML = "";
 
   if (state.questions.length === 0) {
@@ -550,7 +564,14 @@ function renderLibrary() {
     return;
   }
 
-  state.questions.forEach((question) => {
+  const questions = getManageTopicQuestions();
+
+  if (questions.length === 0) {
+    els.libraryList.textContent = "В этом дне пока нет вопросов.";
+    return;
+  }
+
+  questions.forEach((question, index) => {
     const item = document.createElement("article");
     item.className = "library-item";
 
@@ -559,9 +580,10 @@ function renderLibrary() {
       ? `<img class="library-thumb" src="${escapeAttribute(question.imageUrl)}" alt="Картинка задания" loading="lazy" />`
       : "";
     item.innerHTML = `
+      <small>${escapeHtml(question.topic || "Математика")} | Вопрос ${index + 1}</small>
       <strong>${escapeHtml(question.question)}</strong>
       ${imageMarkup}
-      <small>${escapeHtml(question.topic || "Математика")} | Ответ: ${escapeHtml(correctAnswer)}</small>
+      <small>Ответ: ${escapeHtml(correctAnswer)}</small>
     `;
 
     const actions = document.createElement("div");
@@ -585,6 +607,24 @@ function renderLibrary() {
   });
 
   typesetMath(els.libraryList);
+}
+
+function renderManageTopics() {
+  const topics = getTopics();
+  els.manageTopicList.innerHTML = "";
+
+  topics.forEach((topic) => {
+    const count = state.questions.filter((question) => (question.topic || "Математика") === topic).length;
+    const button = document.createElement("button");
+    button.className = `manage-topic-btn${topic === state.manageTopic ? " is-active" : ""}`;
+    button.type = "button";
+    button.textContent = `${topic} (${count})`;
+    button.addEventListener("click", () => {
+      state.manageTopic = topic;
+      renderLibrary();
+    });
+    els.manageTopicList.append(button);
+  });
 }
 
 function startEditQuestion(question) {
@@ -683,10 +723,22 @@ function syncActiveTopic() {
   }
 }
 
+function syncManageTopic() {
+  const topics = getTopics();
+
+  if (!topics.includes(state.manageTopic)) {
+    state.manageTopic = topics[0] || "";
+  }
+}
+
 function getActiveTopicQuestions() {
   return state.questions
     .filter((question) => (question.topic || "Математика") === state.activeTopic)
     .slice(0, 10);
+}
+
+function getManageTopicQuestions() {
+  return state.questions.filter((question) => (question.topic || "Математика") === state.manageTopic);
 }
 
 function getTopicProgress() {
@@ -758,6 +810,27 @@ function getProfileLabel(value) {
 
 function isAdminName(value) {
   return value.trim().toLowerCase() === "динозаврик";
+}
+
+function canOpenManage() {
+  if (!state.isAdmin) {
+    setStatus("Раздел добавления доступен только администратору.");
+    return false;
+  }
+
+  if (state.adminUnlocked) {
+    return true;
+  }
+
+  const password = window.prompt("Введи пароль администратора");
+
+  if (password === ADMIN_PASSWORD) {
+    state.adminUnlocked = true;
+    return true;
+  }
+
+  setStatus("Пароль не подошел.");
+  return false;
 }
 
 function setStatus(message) {
