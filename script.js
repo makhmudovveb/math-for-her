@@ -229,6 +229,7 @@ function render() {
   renderQuestionButtons();
   renderVariant();
   renderLibrary();
+  typesetMath();
 }
 
 function renderProfile() {
@@ -326,6 +327,8 @@ function renderVariant() {
   questions.slice(0, 10).forEach((question, index) => {
     els.topicQuestions.append(renderQuestionCard(question, index));
   });
+
+  typesetMath(els.topicQuestions);
 }
 
 function renderQuestionCard(question, index) {
@@ -563,6 +566,8 @@ function renderLibrary() {
     item.append(deleteButton);
     els.libraryList.append(item);
   });
+
+  typesetMath(els.libraryList);
 }
 
 async function deleteQuestion(id) {
@@ -801,4 +806,14 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value).replaceAll("`", "&#096;");
+}
+
+function typesetMath(root = document.body) {
+  if (!window.MathJax?.typesetPromise) {
+    return;
+  }
+
+  window.MathJax.typesetPromise([root]).catch(() => {
+    setStatus("Формула LaTeX не отрисовалась. Проверь скобки и команды.");
+  });
 }
