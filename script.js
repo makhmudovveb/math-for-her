@@ -2,6 +2,7 @@ const MOKKY_URL = "https://d9d7ebd7cf0cd0bb.mokky.dev/questions";
 const PROGRESS_URL = getSiblingResourceUrl(MOKKY_URL, "progress");
 const PROFILE_STORAGE_KEY = "math-quiz-profile-name";
 const ADMIN_PASSWORD = "dinozavrik";
+const QUEEN_PASSWORD = "поступлю";
 
 const demoQuestions = [
   {
@@ -26,6 +27,7 @@ const state = {
   questions: [],
   activeTopic: "",
   manageTopic: "",
+  manageTopicOpen: false,
   profile: null,
   profileLabel: "",
   isAdmin: false,
@@ -58,6 +60,7 @@ const els = {
   topicList: document.querySelector("#topicList"),
   totalProgress: document.querySelector("#totalProgress"),
   encourageText: document.querySelector("#encourageText"),
+  resetProgressBtn: document.querySelector("#resetProgressBtn"),
   questionButtons: document.querySelector("#questionButtons"),
   variantTitle: document.querySelector("#variantTitle"),
   variantSummary: document.querySelector("#variantSummary"),
@@ -96,6 +99,7 @@ function init() {
 
   els.profileForm.addEventListener("submit", handleProfile);
   els.resetProfileBtn.addEventListener("click", resetProfile);
+  els.resetProgressBtn.addEventListener("click", resetProgress);
   els.quickNameBtns.forEach((button) => {
     button.addEventListener("click", () => {
       els.nicknameInput.value = button.dataset.name;
@@ -177,7 +181,7 @@ async function handleProfile(event) {
     return;
   }
 
-  if (isAdminName(nickname) && !checkAdminPassword()) {
+  if (!checkProfilePassword(nickname)) {
     return;
   }
 
@@ -279,6 +283,43 @@ function resetProfile() {
   state.progressId = null;
   state.solved = {};
   els.nicknameInput.value = "";
+  render();
+}
+
+async function resetProgress() {
+  if (!state.profile) {
+    setStatus("Сначала выбери профиль.");
+    return;
+  }
+
+  const confirmed = window.confirm("Сбросить результат для текущего профиля?");
+
+  if (!confirmed) {
+    return;
+  }
+
+  state.solved = {};
+  state.answers = {};
+  state.checked = {};
+  state.revealed = {};
+
+  if (apiEnabled && state.progressId) {
+    try {
+      await request(`${PROGRESS_URL}/${state.progressId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          solved: {},
+          updatedAt: new Date().toISOString(),
+        }),
+      });
+      setStatus("Результат сброшен.");
+    } catch (error) {
+      setStatus("Не удалось сбросить результат. Проверь ресурс progress.");
+    }
+  } else {
+    setStatus("Результат сброшен на этом экране.");
+  }
+
   render();
 }
 
@@ -551,6 +592,7 @@ async function handleCreate(event) {
     resetQuestionForm();
     state.activeTopic = newQuestion.topic;
     state.manageTopic = newQuestion.topic;
+    state.manageTopicOpen = true;
     setStatus(isEditing ? "Задание изменено." : "Задание добавлено.");
     await loadQuestions();
     switchView("quiz");
@@ -565,6 +607,11 @@ function renderLibrary() {
 
   if (state.questions.length === 0) {
     els.libraryList.textContent = "Заданий пока нет.";
+    return;
+  }
+
+  if (!state.manageTopicOpen) {
+    els.libraryList.textContent = "Выбери день, чтобы раскрыть вопросы.";
     return;
   }
 
@@ -620,11 +667,16 @@ function renderManageTopics() {
   topics.forEach((topic) => {
     const count = state.questions.filter((question) => (question.topic || "Математика") === topic).length;
     const button = document.createElement("button");
-    button.className = `manage-topic-btn${topic === state.manageTopic ? " is-active" : ""}`;
+    button.className = `manage-topic-btn${topic === state.manageTopic && state.manageTopicOpen ? " is-active" : ""}`;
     button.type = "button";
-    button.textContent = `${topic} (${count})`;
+    button.textContent = `${topic} (${count}) ${topic === state.manageTopic && state.manageTopicOpen ? "−" : "+"}`;
     button.addEventListener("click", () => {
-      state.manageTopic = topic;
+      if (state.manageTopic === topic) {
+        state.manageTopicOpen = !state.manageTopicOpen;
+      } else {
+        state.manageTopic = topic;
+        state.manageTopicOpen = true;
+      }
       renderLibrary();
     });
     els.manageTopicList.append(button);
@@ -732,6 +784,7 @@ function syncManageTopic() {
 
   if (!topics.includes(state.manageTopic)) {
     state.manageTopic = topics[0] || "";
+    state.manageTopicOpen = false;
   }
 }
 
@@ -795,7 +848,16 @@ function isQuestionSolved(questionId) {
 
 function normalizeNickname(value) {
   const nickname = value.trim().toLowerCase();
-  return isAdminName(nickname) ? "динозаврик" : "королева";
+
+  if (isAdminName(nickname)) {
+    return "динозаврик";
+  }
+
+  if (isQueenName(nickname)) {
+    return "мендальноглазая";
+  }
+
+  return nickname;
 }
 
 function getProfileLabel(value) {
@@ -805,15 +867,19 @@ function getProfileLabel(value) {
     return "динозаврик";
   }
 
-  if (nickname === "k") {
-    return "k";
+  if (isQueenName(nickname)) {
+    return "Мендальноглазая";
   }
 
-  return nickname || "королева";
+  return nickname || "гость";
 }
 
 function isAdminName(value) {
   return value.trim().toLowerCase() === "динозаврик";
+}
+
+function isQueenName(value) {
+  return value.trim().toLowerCase() === "мендальноглазая";
 }
 
 function canOpenManage() {
@@ -825,10 +891,22 @@ function canOpenManage() {
   return true;
 }
 
-function checkAdminPassword() {
-  const password = window.prompt("Введи пароль администратора");
+function checkProfilePassword(name) {
+  if (isAdminName(name)) {
+    return checkPassword("Введи пароль администратора", ADMIN_PASSWORD);
+  }
 
-  if (password === ADMIN_PASSWORD) {
+  if (isQueenName(name)) {
+    return checkPassword("Введи пароль для Мендальноглазой", QUEEN_PASSWORD);
+  }
+
+  return true;
+}
+
+function checkPassword(message, expectedPassword) {
+  const password = window.prompt(message);
+
+  if (password === expectedPassword) {
     return true;
   }
 
