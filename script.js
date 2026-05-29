@@ -177,6 +177,10 @@ async function handleProfile(event) {
     return;
   }
 
+  if (isAdminName(nickname) && !checkAdminPassword()) {
+    return;
+  }
+
   applyProfile(nickname);
   localStorage.setItem(PROFILE_STORAGE_KEY, nickname);
   await loadProgress();
@@ -818,14 +822,13 @@ function canOpenManage() {
     return false;
   }
 
-  if (state.adminUnlocked) {
-    return true;
-  }
+  return true;
+}
 
+function checkAdminPassword() {
   const password = window.prompt("Введи пароль администратора");
 
   if (password === ADMIN_PASSWORD) {
-    state.adminUnlocked = true;
     return true;
   }
 
