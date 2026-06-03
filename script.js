@@ -69,6 +69,7 @@ const els = {
   profileForm: document.querySelector("#profileForm"),
   nicknameInput: document.querySelector("#nicknameInput"),
   passwordInput: document.querySelector("#passwordInput"),
+  passwordToggle: document.querySelector("#passwordToggle"),
   usernameStatus: document.querySelector("#usernameStatus"),
   authModeBtns: document.querySelectorAll("[data-auth-mode]"),
   profileNote: document.querySelector("#profileNote"),
@@ -124,6 +125,7 @@ function init() {
   });
 
   els.profileForm.addEventListener("submit", handleProfile);
+  els.passwordToggle.addEventListener("click", togglePasswordVisibility);
   els.resetProfileBtn.addEventListener("click", resetProfile);
   els.resetProgressBtn.addEventListener("click", resetProgress);
   els.authModeBtns.forEach((button) => {
@@ -380,6 +382,14 @@ function setAuthMode(mode) {
   els.passwordInput.autocomplete = mode === "register" ? "new-password" : "current-password";
   els.usernameStatus.textContent = "";
   checkUsernameAvailability();
+}
+
+function togglePasswordVisibility() {
+  const shouldShow = els.passwordInput.type === "password";
+  els.passwordInput.type = shouldShow ? "text" : "password";
+  els.passwordToggle.textContent = shouldShow ? "Скрыть" : "Показать";
+  els.passwordToggle.setAttribute("aria-label", shouldShow ? "Скрыть пароль" : "Показать пароль");
+  els.passwordToggle.setAttribute("aria-pressed", String(shouldShow));
 }
 
 async function checkUsernameAvailability() {

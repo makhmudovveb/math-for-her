@@ -74,7 +74,12 @@
             </label>
             <label>
               Пароль
-              <input id="passwordInput" type="password" placeholder="Пароль" autocomplete="current-password" />
+              <span class="password-field">
+                <input id="passwordInput" type="password" placeholder="Пароль" autocomplete="current-password" />
+                <button class="password-toggle" type="button" id="passwordToggle" aria-label="Показать пароль" aria-pressed="false">
+                  Показать
+                </button>
+              </span>
             </label>
             <button class="primary" type="submit">Начать</button>
           </form>

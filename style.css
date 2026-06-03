@@ -827,6 +827,35 @@ textarea {
   outline: none;
 }
 
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  padding-right: 98px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 850;
+  transform: translateY(-50%);
+}
+
+.password-toggle:hover {
+  border-color: var(--accent);
+  background: #eaf5f2;
+}
+
 textarea {
   min-height: 104px;
   resize: vertical;
