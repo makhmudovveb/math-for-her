@@ -48,17 +48,26 @@
           Ты Мендальноглазая или динозаврик? А если хочешь что-то другое,
           не думай, просто пиши.
         </p>
+        <div class="auth-tabs" role="tablist" aria-label="Вход или регистрация">
+          <button class="tab is-active" type="button" data-auth-mode="login">Войти</button>
+          <button class="tab" type="button" data-auth-mode="register">Регистрация</button>
+        </div>
         <div class="quick-names" aria-label="Быстрый выбор имени">
           <button class="ghost" type="button" data-name="Мендальноглазая">Мендальноглазая</button>
-          <button class="ghost" type="button" data-name="динозаврик">динозаврик</button>
+          <button class="ghost" type="button" data-name="dinozavrik">dinozavrik</button>
         </div>
         <form class="profile-form" id="profileForm">
           <label>
-            Имя
-            <input id="nicknameInput" type="text" placeholder="Напиши имя" autocomplete="off" />
+            Логин
+            <input id="nicknameInput" type="text" placeholder="Напиши логин" autocomplete="username" />
+          </label>
+          <label>
+            Пароль
+            <input id="passwordInput" type="password" placeholder="Пароль" autocomplete="current-password" />
           </label>
           <button class="primary" type="submit">Начать</button>
         </form>
+        <p class="profile-note" id="usernameStatus"></p>
       </section>
 
       <section class="status" id="status" role="status">Загружаю задания...</section>
@@ -183,6 +192,15 @@
               </select>
             </label>
 
+            <label>
+              Объяснение решения
+              <textarea
+                id="explanationInput"
+                rows="4"
+                placeholder="Почему этот ответ правильный? Можно писать текст и LaTeX."
+              ></textarea>
+            </label>
+
             <div class="form-actions">
               <button class="primary" type="submit" id="saveQuestionBtn">Добавить задание</button>
               <button class="ghost is-hidden" type="button" id="cancelEditBtn">Отменить</button>
@@ -199,6 +217,16 @@
           </section>
         </div>
       </section>
+
+      <div class="modal is-hidden" id="solutionModal" aria-hidden="true">
+        <div class="modal-backdrop" data-close-modal></div>
+        <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="solutionTitle">
+          <button class="modal-close" type="button" id="closeSolutionBtn" aria-label="Закрыть">×</button>
+          <p class="eyebrow">Объяснение</p>
+          <h2 id="solutionTitle">Решение вопроса</h2>
+          <div class="modal-content" id="solutionContent"></div>
+        </article>
+      </div>
     </main>
   </body>
 </html>

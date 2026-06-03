@@ -1,8 +1,24 @@
 const MOKKY_URL = "https://d9d7ebd7cf0cd0bb.mokky.dev/questions";
 const PROGRESS_URL = getSiblingResourceUrl(MOKKY_URL, "progress");
+const USERS_URL = getSiblingResourceUrl(MOKKY_URL, "users");
 const PROFILE_STORAGE_KEY = "math-quiz-profile-name";
 const ADMIN_PASSWORD = "dinozavrik";
 const QUEEN_PASSWORD = "я обязательно поступлю";
+
+const defaultUsers = {
+  dinozavrik: {
+    username: "dinozavrik",
+    label: "dinozavrik",
+    password: ADMIN_PASSWORD,
+    isAdmin: true,
+  },
+  "мендальноглазая": {
+    username: "мендальноглазая",
+    label: "Мендальноглазая",
+    password: QUEEN_PASSWORD,
+    isAdmin: false,
+  },
+};
 
 const demoQuestions = [
   {
@@ -41,6 +57,7 @@ const state = {
   editingQuestionId: null,
   timerSeconds: 0,
   timerId: null,
+  authMode: "login",
 };
 
 const els = {
@@ -51,6 +68,9 @@ const els = {
   profilePanel: document.querySelector("#profilePanel"),
   profileForm: document.querySelector("#profileForm"),
   nicknameInput: document.querySelector("#nicknameInput"),
+  passwordInput: document.querySelector("#passwordInput"),
+  usernameStatus: document.querySelector("#usernameStatus"),
+  authModeBtns: document.querySelectorAll("[data-auth-mode]"),
   profileNote: document.querySelector("#profileNote"),
   quickNameBtns: document.querySelectorAll("[data-name]"),
   tabs: document.querySelectorAll(".tab"),
@@ -75,6 +95,7 @@ const els = {
   cancelEditBtn: document.querySelector("#cancelEditBtn"),
   questionInput: document.querySelector("#questionInput"),
   topicInput: document.querySelector("#topicInput"),
+  explanationInput: document.querySelector("#explanationInput"),
   imageUrlInput: document.querySelector("#imageUrlInput"),
   imageFileInput: document.querySelector("#imageFileInput"),
   imagePreviewWrap: document.querySelector("#imagePreviewWrap"),
@@ -85,6 +106,10 @@ const els = {
   refreshBtn: document.querySelector("#refreshBtn"),
   manageTopicList: document.querySelector("#manageTopicList"),
   libraryList: document.querySelector("#libraryList"),
+  solutionModal: document.querySelector("#solutionModal"),
+  closeSolutionBtn: document.querySelector("#closeSolutionBtn"),
+  solutionTitle: document.querySelector("#solutionTitle"),
+  solutionContent: document.querySelector("#solutionContent"),
 };
 
 const letters = ["A", "B", "C", "D"];
@@ -100,10 +125,15 @@ function init() {
   els.profileForm.addEventListener("submit", handleProfile);
   els.resetProfileBtn.addEventListener("click", resetProfile);
   els.resetProgressBtn.addEventListener("click", resetProgress);
+  els.authModeBtns.forEach((button) => {
+    button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
+  });
+  els.nicknameInput.addEventListener("input", debounce(checkUsernameAvailability, 350));
   els.quickNameBtns.forEach((button) => {
     button.addEventListener("click", () => {
       els.nicknameInput.value = button.dataset.name;
-      els.profileForm.requestSubmit();
+      els.passwordInput.focus();
+      checkUsernameAvailability();
     });
   });
   els.checkVariantBtn.addEventListener("click", checkVariant);
@@ -112,6 +142,10 @@ function init() {
   els.refreshBtn.addEventListener("click", loadQuestions);
   els.form.addEventListener("submit", handleCreate);
   els.cancelEditBtn.addEventListener("click", cancelEdit);
+  els.closeSolutionBtn.addEventListener("click", closeSolutionModal);
+  els.solutionModal.querySelectorAll("[data-close-modal]").forEach((node) => {
+    node.addEventListener("click", closeSolutionModal);
+  });
   els.imageUrlInput.addEventListener("input", updateImagePreviewFromUrl);
   els.imageFileInput.addEventListener("change", handleImageFile);
   els.clearImageBtn.addEventListener("click", clearImage);
@@ -175,18 +209,28 @@ async function handleProfile(event) {
   event.preventDefault();
 
   const nickname = els.nicknameInput.value.trim();
+  const password = els.passwordInput.value;
 
   if (!nickname) {
-    setStatus("Введи никнейм, чтобы я понимал, чей прогресс сохранять.");
+    setStatus("Введи логин.");
     return;
   }
 
-  if (!checkProfilePassword(nickname)) {
+  if (!password) {
+    setStatus("Введи пароль.");
     return;
   }
 
-  applyProfile(nickname);
-  localStorage.setItem(PROFILE_STORAGE_KEY, nickname);
+  const user = state.authMode === "register"
+    ? await registerUser(nickname, password)
+    : await loginUser(nickname, password);
+
+  if (!user) {
+    return;
+  }
+
+  applyUser(user);
+  localStorage.setItem(PROFILE_STORAGE_KEY, user.username);
   await loadProgress();
   render();
 }
@@ -198,17 +242,127 @@ async function loadSavedProfile() {
     return;
   }
 
-  applyProfile(savedName);
+  applyUser(getDefaultOrStoredUser(savedName));
   await loadProgress();
   render();
 }
 
-function applyProfile(name) {
-  const cleanName = name.trim();
-  state.profile = normalizeNickname(cleanName);
-  state.profileLabel = getProfileLabel(cleanName);
-  state.isAdmin = isAdminName(cleanName);
+function applyUser(user) {
+  state.profile = normalizeNickname(user.username);
+  state.profileLabel = user.label || getProfileLabel(user.username);
+  state.isAdmin = Boolean(user.isAdmin || isAdminName(user.username));
   state.adminUnlocked = false;
+}
+
+async function loginUser(name, password) {
+  const username = normalizeNickname(name);
+  const user = await findUser(username);
+
+  if (!user) {
+    setStatus("Такого логина нет. Можно зарегистрироваться.");
+    return null;
+  }
+
+  if (user.password !== password) {
+    setStatus("Пароль не подошел.");
+    return null;
+  }
+
+  setStatus("Вход выполнен.");
+  return user;
+}
+
+async function registerUser(name, password) {
+  const username = normalizeNickname(name);
+
+  if (!username) {
+    setStatus("Введи логин.");
+    return null;
+  }
+
+  if (password.length < 3) {
+    setStatus("Пароль слишком короткий.");
+    return null;
+  }
+
+  const existing = await findUser(username);
+
+  if (existing) {
+    setStatus("Такой логин уже занят.");
+    return null;
+  }
+
+  const user = {
+    username,
+    label: getProfileLabel(username),
+    password,
+    isAdmin: isAdminName(username),
+    createdAt: new Date().toISOString(),
+  };
+
+  if (!apiEnabled) {
+    setStatus("Регистрация требует Mokky API.");
+    return null;
+  }
+
+  try {
+    const created = await request(USERS_URL, {
+      method: "POST",
+      body: JSON.stringify(user),
+    });
+    setStatus("Регистрация готова.");
+    return created;
+  } catch (error) {
+    setStatus("Не удалось зарегистрировать пользователя. Создай ресурс users в Mokky.");
+    return null;
+  }
+}
+
+async function findUser(username) {
+  const defaultUser = defaultUsers[username];
+
+  if (!apiEnabled) {
+    return defaultUser || null;
+  }
+
+  try {
+    const users = await request(`${USERS_URL}?username=${encodeURIComponent(username)}`);
+    return Array.isArray(users) && users[0] ? users[0] : defaultUser || null;
+  } catch (error) {
+    return defaultUser || null;
+  }
+}
+
+function getDefaultOrStoredUser(name) {
+  const username = normalizeNickname(name);
+  return defaultUsers[username] || {
+    username,
+    label: getProfileLabel(username),
+    password: "",
+    isAdmin: isAdminName(username),
+  };
+}
+
+function setAuthMode(mode) {
+  state.authMode = mode;
+  els.authModeBtns.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.authMode === mode);
+  });
+  els.passwordInput.autocomplete = mode === "register" ? "new-password" : "current-password";
+  els.usernameStatus.textContent = "";
+  checkUsernameAvailability();
+}
+
+async function checkUsernameAvailability() {
+  const username = normalizeNickname(els.nicknameInput.value);
+
+  if (!username || state.authMode !== "register") {
+    els.usernameStatus.textContent = "";
+    return;
+  }
+
+  const existing = await findUser(username);
+  els.usernameStatus.textContent = existing ? "Такой логин уже существует." : "Логин свободен.";
 }
 
 async function loadProgress() {
@@ -410,12 +564,16 @@ function renderQuestionCard(question, index) {
     .join("");
 
   const resultMarkup = renderQuestionResult(question);
+  const helpMarkup = question.explanation
+    ? `<div class="question-tools"><button class="help-btn" type="button" data-explain="${escapeAttribute(question.id)}" title="Показать объяснение">?</button></div>`
+    : "";
 
   card.innerHTML = `
     <div class="question-meta">
       <span>Вопрос ${index + 1}</span>
       <span>${escapeHtml(question.topic || "Математика")}</span>
     </div>
+    ${helpMarkup}
     <h3>${escapeHtml(question.question)}</h3>
     ${imageMarkup}
     <div class="options">${optionsMarkup}</div>
@@ -429,6 +587,11 @@ function renderQuestionCard(question, index) {
   const revealButton = card.querySelector("[data-reveal]");
   if (revealButton) {
     revealButton.addEventListener("click", () => revealAnswer(question.id));
+  }
+
+  const explainButton = card.querySelector("[data-explain]");
+  if (explainButton) {
+    explainButton.addEventListener("click", () => openSolutionModal(question));
   }
 
   return card;
@@ -532,6 +695,19 @@ function revealAnswer(questionId) {
   renderVariant();
 }
 
+function openSolutionModal(question) {
+  els.solutionTitle.textContent = question.question || "Решение вопроса";
+  els.solutionContent.textContent = question.explanation || "Объяснение пока не добавлено.";
+  els.solutionModal.classList.remove("is-hidden");
+  els.solutionModal.setAttribute("aria-hidden", "false");
+  typesetMath(els.solutionModal);
+}
+
+function closeSolutionModal() {
+  els.solutionModal.classList.add("is-hidden");
+  els.solutionModal.setAttribute("aria-hidden", "true");
+}
+
 async function markQuestionSolved(question) {
   if (!question || !question.id) {
     return;
@@ -568,6 +744,7 @@ async function handleCreate(event) {
     question: els.questionInput.value.trim(),
     topic: els.topicInput.value.trim() || "30 день",
     imageUrl,
+    explanation: els.explanationInput.value.trim(),
     options: [...els.optionInputs].map((input) => input.value.trim()),
     correctIndex: Number(els.correctInput.value),
   };
@@ -691,6 +868,7 @@ function startEditQuestion(question) {
   els.cancelEditBtn.classList.remove("is-hidden");
   els.questionInput.value = question.question || "";
   els.topicInput.value = question.topic || "";
+  els.explanationInput.value = question.explanation || "";
   els.imageUrlInput.value = question.imageUrl || "";
   els.imageFileInput.value = "";
   renderImagePreview(question.imageUrl || "");
@@ -850,7 +1028,7 @@ function normalizeNickname(value) {
   const nickname = value.trim().toLowerCase();
 
   if (isAdminName(nickname)) {
-    return "динозаврик";
+    return "dinozavrik";
   }
 
   if (isQueenName(nickname)) {
@@ -864,7 +1042,7 @@ function getProfileLabel(value) {
   const nickname = value.trim().toLowerCase();
 
   if (isAdminName(nickname)) {
-    return "динозаврик";
+    return "dinozavrik";
   }
 
   if (isQueenName(nickname)) {
@@ -875,7 +1053,8 @@ function getProfileLabel(value) {
 }
 
 function isAdminName(value) {
-  return value.trim().toLowerCase() === "динозаврик";
+  const nickname = value.trim().toLowerCase();
+  return nickname === "dinozavrik" || nickname === "динозаврик";
 }
 
 function isQueenName(value) {
@@ -889,29 +1068,6 @@ function canOpenManage() {
   }
 
   return true;
-}
-
-function checkProfilePassword(name) {
-  if (isAdminName(name)) {
-    return checkPassword("Введи пароль администратора", ADMIN_PASSWORD);
-  }
-
-  if (isQueenName(name)) {
-    return checkPassword("Введи пароль для Мендальноглазой", QUEEN_PASSWORD);
-  }
-
-  return true;
-}
-
-function checkPassword(message, expectedPassword) {
-  const password = window.prompt(message);
-
-  if (password === expectedPassword) {
-    return true;
-  }
-
-  setStatus("Пароль не подошел.");
-  return false;
 }
 
 function setStatus(message) {
