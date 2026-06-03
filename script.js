@@ -114,6 +114,7 @@ const els = {
 
 const letters = ["A", "B", "C", "D"];
 const apiEnabled = MOKKY_URL.trim().length > 0;
+let solutionCloseTimer = null;
 
 init();
 
@@ -142,10 +143,12 @@ function init() {
   els.refreshBtn.addEventListener("click", loadQuestions);
   els.form.addEventListener("submit", handleCreate);
   els.cancelEditBtn.addEventListener("click", cancelEdit);
-  els.closeSolutionBtn.addEventListener("click", closeSolutionModal);
-  els.solutionModal.querySelectorAll("[data-close-modal]").forEach((node) => {
-    node.addEventListener("click", closeSolutionModal);
-  });
+  if (els.closeSolutionBtn && els.solutionModal) {
+    els.closeSolutionBtn.addEventListener("click", closeSolutionModal);
+    els.solutionModal.querySelectorAll("[data-close-modal]").forEach((node) => {
+      node.addEventListener("click", closeSolutionModal);
+    });
+  }
   els.imageUrlInput.addEventListener("input", updateImagePreviewFromUrl);
   els.imageFileInput.addEventListener("change", handleImageFile);
   els.clearImageBtn.addEventListener("click", clearImage);
@@ -158,7 +161,8 @@ async function loadQuestions() {
   setStatus("Загружаю задания...");
 
   try {
-    state.questions = apiEnabled ? await request(MOKKY_URL) : [...demoQuestions];
+    const questions = apiEnabled ? await request(MOKKY_URL) : [...demoQuestions];
+    state.questions = normalizeCollection(questions);
     syncActiveTopic();
     syncManageTopic();
     setStatus(
@@ -170,7 +174,7 @@ async function loadQuestions() {
     state.questions = [...demoQuestions];
     syncActiveTopic();
     syncManageTopic();
-    setStatus("API пока недоступен, показываю демо-задания.");
+    setStatus(`API пока недоступен, показываю демо-задания. ${error.message}`);
   }
 
   render();
@@ -190,6 +194,31 @@ async function request(url, options = {}) {
   }
 
   return response.status === 204 ? null : response.json();
+}
+
+function normalizeCollection(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.items)) {
+    return data.items;
+  }
+
+  if (Array.isArray(data?.data)) {
+    return data.data;
+  }
+
+  return [];
+}
+
+function debounce(callback, delay = 300) {
+  let timerId;
+
+  return (...args) => {
+    clearTimeout(timerId);
+    timerId = setTimeout(() => callback(...args), delay);
+  };
 }
 
 function switchView(viewName) {
@@ -414,6 +443,7 @@ function renderProfile() {
   const ready = Boolean(state.profile);
   els.profilePanel.classList.toggle("is-ready", ready);
   els.profileBadge.classList.toggle("is-hidden", !ready);
+  document.body.classList.toggle("has-profile", ready);
 
   if (ready) {
     els.profileName.textContent = state.isAdmin
@@ -437,6 +467,7 @@ function resetProfile() {
   state.progressId = null;
   state.solved = {};
   els.nicknameInput.value = "";
+  els.passwordInput.value = "";
   render();
 }
 
@@ -696,16 +727,27 @@ function revealAnswer(questionId) {
 }
 
 function openSolutionModal(question) {
+  clearTimeout(solutionCloseTimer);
   els.solutionTitle.textContent = question.question || "Решение вопроса";
   els.solutionContent.textContent = question.explanation || "Объяснение пока не добавлено.";
+  els.solutionModal.classList.remove("is-closing");
   els.solutionModal.classList.remove("is-hidden");
   els.solutionModal.setAttribute("aria-hidden", "false");
   typesetMath(els.solutionModal);
 }
 
 function closeSolutionModal() {
-  els.solutionModal.classList.add("is-hidden");
+  if (els.solutionModal.classList.contains("is-hidden")) {
+    return;
+  }
+
+  els.solutionModal.classList.add("is-closing");
   els.solutionModal.setAttribute("aria-hidden", "true");
+  clearTimeout(solutionCloseTimer);
+  solutionCloseTimer = setTimeout(() => {
+    els.solutionModal.classList.add("is-hidden");
+    els.solutionModal.classList.remove("is-closing");
+  }, 220);
 }
 
 async function markQuestionSolved(question) {

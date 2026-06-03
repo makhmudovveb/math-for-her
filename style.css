@@ -30,6 +30,13 @@ body {
     Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+body:not(.has-profile) {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(229, 184, 75, 0.2), transparent 28%),
+    radial-gradient(circle at 82% 10%, rgba(23, 108, 95, 0.2), transparent 30%),
+    linear-gradient(135deg, #f7f3e9 0%, #eef6f4 48%, #f8fafc 100%);
+}
+
 button,
 input,
 select,
@@ -47,6 +54,13 @@ button {
   padding: 28px 0;
 }
 
+body:not(.has-profile) .app {
+  display: grid;
+  align-content: center;
+  min-height: 100vh;
+  padding: 24px 0;
+}
+
 .topbar,
 .status,
 .profile-panel,
@@ -60,12 +74,32 @@ button {
   box-shadow: var(--shadow);
 }
 
+body:not(.has-profile) .topbar,
+body:not(.has-profile) .view {
+  display: none;
+}
+
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   padding: 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.brand-logo {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  border-radius: 14px;
+  box-shadow: 0 12px 26px rgba(23, 108, 95, 0.18);
 }
 
 .top-actions {
@@ -201,6 +235,13 @@ h2 {
   color: var(--muted);
 }
 
+body:not(.has-profile) .status {
+  justify-self: center;
+  width: min(520px, 100%);
+  margin: 14px 0 0;
+  text-align: center;
+}
+
 .profile-panel {
   display: grid;
   gap: 10px;
@@ -208,8 +249,100 @@ h2 {
   padding: 20px;
 }
 
+body:not(.has-profile) .profile-panel {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 430px);
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(23, 108, 95, 0.92), rgba(15, 79, 70, 0.95)),
+    #176c5f;
+  color: #fff;
+}
+
 .profile-panel.is-ready {
   display: none;
+}
+
+.login-hero,
+.login-card {
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  min-height: 560px;
+  padding: clamp(28px, 5vw, 56px);
+}
+
+.login-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.login-hero::before {
+  content: "÷";
+  position: absolute;
+  right: clamp(18px, 6vw, 80px);
+  bottom: clamp(12px, 4vw, 48px);
+  color: rgba(255, 255, 255, 0.12);
+  font-size: clamp(8rem, 18vw, 16rem);
+  font-weight: 900;
+  line-height: 0.8;
+}
+
+.login-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.login-logo {
+  width: 74px;
+  height: 74px;
+  border-radius: 18px;
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.16);
+}
+
+.login-hero .eyebrow {
+  color: #f5d57d;
+}
+
+.login-hero h2 {
+  max-width: 560px;
+  color: #fff;
+  font-size: clamp(2.25rem, 5vw, 4.5rem);
+  line-height: 0.98;
+}
+
+.login-hero .profile-note {
+  max-width: 520px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 1.04rem;
+  line-height: 1.55;
+}
+
+.login-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.login-stats span {
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--text);
+}
+
+.login-card h2 {
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
 }
 
 .profile-form {
@@ -217,6 +350,16 @@ h2 {
   grid-template-columns: 1fr 1fr auto;
   align-items: end;
   gap: 12px;
+}
+
+.login-card .profile-form {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.login-card .primary {
+  width: 100%;
+  min-height: 50px;
 }
 #profileName {
   text-transform: capitalize;
@@ -243,6 +386,14 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f8fafc;
+}
+
+.login-card .auth-tabs {
+  width: 100%;
+}
+
+.login-card .auth-tabs .tab {
+  flex: 1;
 }
 
 .view {
@@ -780,16 +931,26 @@ textarea:focus {
   display: grid;
   place-items: center;
   padding: 18px;
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition:
+    opacity 0.22s ease,
+    visibility 0.22s ease;
 }
 
-.modal.is-hidden {
-  display: none;
+.modal.is-hidden,
+.modal.is-closing {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .modal-backdrop {
   position: absolute;
   inset: 0;
   background: rgba(24, 32, 42, 0.45);
+  transition: opacity 0.22s ease;
 }
 
 .modal-card {
@@ -803,6 +964,17 @@ textarea:focus {
   border-radius: 8px;
   background: #fff;
   box-shadow: var(--shadow);
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.modal.is-hidden .modal-card,
+.modal.is-closing .modal-card {
+  opacity: 0;
+  transform: translateY(16px) scale(0.98);
 }
 
 .modal-close {
@@ -828,6 +1000,27 @@ textarea:focus {
 }
 
 @media (max-width: 820px) {
+  body:not(.has-profile) .app {
+    align-content: start;
+  }
+
+  body:not(.has-profile) .profile-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .login-hero,
+  .login-card {
+    min-height: auto;
+  }
+
+  .login-hero {
+    padding-bottom: 34px;
+  }
+
+  .login-card {
+    padding-top: 34px;
+  }
+
   .topbar,
   .top-actions,
   .profile-form,
@@ -836,6 +1029,10 @@ textarea:focus {
   .question-meta {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .brand {
+    align-items: flex-start;
   }
 
   .tabs {
@@ -877,6 +1074,21 @@ textarea:focus {
   .app {
     width: min(100% - 20px, 1120px);
     padding: 10px 0;
+  }
+
+  body:not(.has-profile) .app {
+    width: 100%;
+    padding: 0;
+  }
+
+  body:not(.has-profile) .profile-panel,
+  body:not(.has-profile) .status {
+    border-radius: 0;
+  }
+
+  .login-hero,
+  .login-card {
+    padding: 26px 18px;
   }
 
   .answers-grid {
