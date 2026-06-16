@@ -218,6 +218,27 @@
               ></textarea>
             </label>
 
+            <div class="image-tools">
+              <label>
+                Картинка для объяснения
+                <input
+                  id="explanationImageUrlInput"
+                  type="text"
+                  placeholder="https://.../reshenie.png"
+                />
+              </label>
+
+              <label>
+                Или выбрать фото для объяснения
+                <input id="explanationImageFileInput" type="file" accept="image/*" />
+              </label>
+
+              <figure class="image-preview is-hidden" id="explanationImagePreviewWrap">
+                <img id="explanationImagePreview" alt="Предпросмотр картинки объяснения" />
+                <button class="ghost" type="button" id="clearExplanationImageBtn">Убрать картинку</button>
+              </figure>
+            </div>
+
             <div class="form-actions">
               <button class="primary" type="submit" id="saveQuestionBtn">Добавить задание</button>
               <button class="ghost is-hidden" type="button" id="cancelEditBtn">Отменить</button>

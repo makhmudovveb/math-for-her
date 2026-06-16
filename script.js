@@ -54,6 +54,7 @@ const state = {
   checked: {},
   revealed: {},
   pendingImageData: "",
+  pendingExplanationImageData: "",
   editingQuestionId: null,
   timerSeconds: 0,
   timerId: null,
@@ -102,6 +103,11 @@ const els = {
   imagePreviewWrap: document.querySelector("#imagePreviewWrap"),
   imagePreview: document.querySelector("#imagePreview"),
   clearImageBtn: document.querySelector("#clearImageBtn"),
+  explanationImageUrlInput: document.querySelector("#explanationImageUrlInput"),
+  explanationImageFileInput: document.querySelector("#explanationImageFileInput"),
+  explanationImagePreviewWrap: document.querySelector("#explanationImagePreviewWrap"),
+  explanationImagePreview: document.querySelector("#explanationImagePreview"),
+  clearExplanationImageBtn: document.querySelector("#clearExplanationImageBtn"),
   optionInputs: document.querySelectorAll(".option-input"),
   correctInput: document.querySelector("#correctInput"),
   refreshBtn: document.querySelector("#refreshBtn"),
@@ -154,6 +160,9 @@ function init() {
   els.imageUrlInput.addEventListener("input", updateImagePreviewFromUrl);
   els.imageFileInput.addEventListener("change", handleImageFile);
   els.clearImageBtn.addEventListener("click", clearImage);
+  els.explanationImageUrlInput.addEventListener("input", updateExplanationImagePreviewFromUrl);
+  els.explanationImageFileInput.addEventListener("change", handleExplanationImageFile);
+  els.clearExplanationImageBtn.addEventListener("click", clearExplanationImage);
 
   loadQuestions();
   loadSavedProfile();
@@ -739,7 +748,25 @@ function revealAnswer(questionId) {
 function openSolutionModal(question) {
   clearTimeout(solutionCloseTimer);
   els.solutionTitle.textContent = question.question || "Решение вопроса";
-  els.solutionContent.textContent = question.explanation || "Объяснение пока не добавлено.";
+  els.solutionContent.innerHTML = "";
+
+  const text = document.createElement("p");
+  text.className = "solution-text";
+  text.textContent = question.explanation || "Объяснение пока не добавлено.";
+  els.solutionContent.append(text);
+
+  if (question.explanationImageUrl) {
+    const figure = document.createElement("figure");
+    figure.className = "solution-image";
+
+    const image = document.createElement("img");
+    image.src = question.explanationImageUrl;
+    image.alt = "Картинка к объяснению";
+
+    figure.append(image);
+    els.solutionContent.append(figure);
+  }
+
   els.solutionModal.classList.remove("is-closing");
   els.solutionModal.classList.remove("is-hidden");
   els.solutionModal.setAttribute("aria-hidden", "false");
@@ -792,11 +819,13 @@ async function handleCreate(event) {
   event.preventDefault();
 
   const imageUrl = state.pendingImageData || els.imageUrlInput.value.trim();
+  const explanationImageUrl = state.pendingExplanationImageData || els.explanationImageUrlInput.value.trim();
   const newQuestion = {
     question: els.questionInput.value.trim(),
     topic: els.topicInput.value.trim() || "30 день",
     imageUrl,
     explanation: els.explanationInput.value.trim(),
+    explanationImageUrl,
     options: [...els.optionInputs].map((input) => input.value.trim()),
     correctIndex: Number(els.correctInput.value),
   };
@@ -915,6 +944,7 @@ function renderManageTopics() {
 function startEditQuestion(question) {
   state.editingQuestionId = question.id;
   state.pendingImageData = "";
+  state.pendingExplanationImageData = "";
   els.formTitle.textContent = "Изменить задание";
   els.saveQuestionBtn.textContent = "Сохранить изменения";
   els.cancelEditBtn.classList.remove("is-hidden");
@@ -924,6 +954,9 @@ function startEditQuestion(question) {
   els.imageUrlInput.value = question.imageUrl || "";
   els.imageFileInput.value = "";
   renderImagePreview(question.imageUrl || "");
+  els.explanationImageUrlInput.value = question.explanationImageUrl || "";
+  els.explanationImageFileInput.value = "";
+  renderExplanationImagePreview(question.explanationImageUrl || "");
 
   [...els.optionInputs].forEach((input, index) => {
     input.value = question.options?.[index] || "";
@@ -942,6 +975,7 @@ function resetQuestionForm() {
   state.editingQuestionId = null;
   els.form.reset();
   clearImage();
+  clearExplanationImage();
   els.formTitle.textContent = "Новое задание";
   els.saveQuestionBtn.textContent = "Добавить задание";
   els.cancelEditBtn.classList.add("is-hidden");
@@ -1153,6 +1187,33 @@ async function handleImageFile(event) {
   }
 }
 
+function updateExplanationImagePreviewFromUrl() {
+  state.pendingExplanationImageData = "";
+  renderExplanationImagePreview(els.explanationImageUrlInput.value.trim());
+}
+
+async function handleExplanationImageFile(event) {
+  const file = event.target.files[0];
+
+  if (!file) {
+    return;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    setStatus("Выбери файл картинки.");
+    return;
+  }
+
+  try {
+    state.pendingExplanationImageData = await compressImage(file);
+    els.explanationImageUrlInput.value = "";
+    renderExplanationImagePreview(state.pendingExplanationImageData);
+    setStatus("Картинка объяснения готова к сохранению.");
+  } catch (error) {
+    setStatus("Не получилось обработать картинку объяснения. Попробуй другое фото.");
+  }
+}
+
 function renderImagePreview(imageUrl) {
   if (!imageUrl) {
     els.imagePreview.removeAttribute("src");
@@ -1164,11 +1225,29 @@ function renderImagePreview(imageUrl) {
   els.imagePreviewWrap.classList.remove("is-hidden");
 }
 
+function renderExplanationImagePreview(imageUrl) {
+  if (!imageUrl) {
+    els.explanationImagePreview.removeAttribute("src");
+    els.explanationImagePreviewWrap.classList.add("is-hidden");
+    return;
+  }
+
+  els.explanationImagePreview.src = imageUrl;
+  els.explanationImagePreviewWrap.classList.remove("is-hidden");
+}
+
 function clearImage() {
   state.pendingImageData = "";
   els.imageUrlInput.value = "";
   els.imageFileInput.value = "";
   renderImagePreview("");
+}
+
+function clearExplanationImage() {
+  state.pendingExplanationImageData = "";
+  els.explanationImageUrlInput.value = "";
+  els.explanationImageFileInput.value = "";
+  renderExplanationImagePreview("");
 }
 
 function compressImage(file) {
