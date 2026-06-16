@@ -40,6 +40,7 @@
           <div class="tabs" role="tablist" aria-label="Разделы">
             <button class="tab is-active" type="button" data-view="quiz">Решать</button>
             <button class="tab" type="button" data-view="manage">Добавить</button>
+            <button class="tab" type="button" data-view="users">Пользователи</button>
           </div>
         </div>
       </section>
@@ -253,6 +254,19 @@
             <div class="manage-topic-list" id="manageTopicList"></div>
             <div class="library-list" id="libraryList"></div>
           </section>
+        </div>
+      </section>
+
+      <section class="view" id="usersView" aria-label="Пользователи">
+        <div class="users-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Админ</p>
+              <h2>Пользователи</h2>
+            </div>
+            <button class="ghost" type="button" id="refreshUsersBtn">Обновить</button>
+          </div>
+          <div class="users-list" id="usersList"></div>
         </div>
       </section>
 

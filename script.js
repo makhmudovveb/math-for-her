@@ -41,6 +41,7 @@ const demoQuestions = [
 
 const state = {
   questions: [],
+  users: [],
   activeTopic: "",
   manageTopic: "",
   manageTopicOpen: false,
@@ -78,6 +79,7 @@ const els = {
   tabs: document.querySelectorAll(".tab"),
   quizView: document.querySelector("#quizView"),
   manageView: document.querySelector("#manageView"),
+  usersView: document.querySelector("#usersView"),
   questionCount: document.querySelector("#questionCount"),
   topicList: document.querySelector("#topicList"),
   totalProgress: document.querySelector("#totalProgress"),
@@ -111,6 +113,8 @@ const els = {
   optionInputs: document.querySelectorAll(".option-input"),
   correctInput: document.querySelector("#correctInput"),
   refreshBtn: document.querySelector("#refreshBtn"),
+  refreshUsersBtn: document.querySelector("#refreshUsersBtn"),
+  usersList: document.querySelector("#usersList"),
   manageTopicList: document.querySelector("#manageTopicList"),
   libraryList: document.querySelector("#libraryList"),
   solutionModal: document.querySelector("#solutionModal"),
@@ -149,6 +153,7 @@ function init() {
   els.timerBtn.addEventListener("click", toggleTimer);
   els.resetTimerBtn.addEventListener("click", resetTimer);
   els.refreshBtn.addEventListener("click", loadQuestions);
+  els.refreshUsersBtn.addEventListener("click", loadUsers);
   els.form.addEventListener("submit", handleCreate);
   els.cancelEditBtn.addEventListener("click", cancelEdit);
   if (els.closeSolutionBtn && els.solutionModal) {
@@ -189,6 +194,48 @@ async function loadQuestions() {
   }
 
   render();
+}
+
+async function loadUsers() {
+  if (!state.isAdmin) {
+    return;
+  }
+
+  const fallbackUsers = Object.values(defaultUsers);
+
+  if (!apiEnabled) {
+    state.users = fallbackUsers;
+    renderUsers();
+    return;
+  }
+
+  try {
+    const users = normalizeCollection(await request(USERS_URL));
+    const userMap = new Map();
+
+    [...fallbackUsers, ...users].forEach((user) => {
+      const username = normalizeNickname(user.username || "");
+
+      if (!username) {
+        return;
+      }
+
+      userMap.set(username, {
+        ...user,
+        username,
+        label: user.label || getProfileLabel(username),
+        isAdmin: Boolean(user.isAdmin || isAdminName(username)),
+      });
+    });
+
+    state.users = [...userMap.values()].sort((a, b) => a.username.localeCompare(b.username));
+    renderUsers();
+    setStatus("Список пользователей обновлен.");
+  } catch (error) {
+    state.users = fallbackUsers;
+    renderUsers();
+    setStatus("Не удалось загрузить users из Mokky. Показываю встроенных пользователей.");
+  }
 }
 
 async function request(url, options = {}) {
@@ -233,7 +280,7 @@ function debounce(callback, delay = 300) {
 }
 
 function switchView(viewName) {
-  if (viewName === "manage" && !canOpenManage()) {
+  if ((viewName === "manage" || viewName === "users") && !canOpenManage()) {
     return;
   }
 
@@ -243,6 +290,11 @@ function switchView(viewName) {
 
   els.quizView.classList.toggle("is-visible", viewName === "quiz");
   els.manageView.classList.toggle("is-visible", viewName === "manage");
+  els.usersView.classList.toggle("is-visible", viewName === "users");
+
+  if (viewName === "users") {
+    loadUsers();
+  }
 }
 
 async function handleProfile(event) {
@@ -455,6 +507,7 @@ function render() {
   renderQuestionButtons();
   renderVariant();
   renderLibrary();
+  renderUsers();
   typesetMath();
 }
 
@@ -472,7 +525,7 @@ function renderProfile() {
 
   document.body.classList.toggle("is-admin", state.isAdmin);
 
-  if (!state.isAdmin && els.manageView.classList.contains("is-visible")) {
+  if (!state.isAdmin && (els.manageView.classList.contains("is-visible") || els.usersView.classList.contains("is-visible"))) {
     switchView("quiz");
   }
 }
@@ -916,6 +969,47 @@ function renderLibrary() {
   });
 
   typesetMath(els.libraryList);
+}
+
+function renderUsers() {
+  if (!els.usersList || !state.isAdmin) {
+    return;
+  }
+
+  els.usersList.innerHTML = "";
+
+  if (state.users.length === 0) {
+    els.usersList.textContent = "Пользователей пока не удалось загрузить.";
+    return;
+  }
+
+  state.users.forEach((user) => {
+    const item = document.createElement("article");
+    item.className = "user-item";
+
+    const createdAt = user.createdAt
+      ? new Date(user.createdAt).toLocaleString("ru-RU")
+      : "встроенный";
+
+    item.innerHTML = `
+      <div>
+        <small>${user.isAdmin ? "Админ" : "Пользователь"} | ${escapeHtml(createdAt)}</small>
+        <strong>${escapeHtml(user.label || user.username)}</strong>
+      </div>
+      <dl class="user-credentials">
+        <div>
+          <dt>Логин</dt>
+          <dd>${escapeHtml(user.username || "")}</dd>
+        </div>
+        <div>
+          <dt>Пароль</dt>
+          <dd>${escapeHtml(user.password || "не задан")}</dd>
+        </div>
+      </dl>
+    `;
+
+    els.usersList.append(item);
+  });
 }
 
 function renderManageTopics() {

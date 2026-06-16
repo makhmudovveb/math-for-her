@@ -67,7 +67,8 @@ body:not(.has-profile) .app {
 .quiz-panel,
 .question-list,
 .editor,
-.library {
+.library,
+.users-panel {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(217, 222, 232, 0.9);
   border-radius: 8px;
@@ -143,7 +144,8 @@ body:not(.has-profile) .view {
   text-align: left;
 }
 
-body:not(.is-admin) .tab[data-view="manage"] {
+body:not(.is-admin) .tab[data-view="manage"],
+body:not(.is-admin) .tab[data-view="users"] {
   display: none;
 }
 
@@ -415,7 +417,8 @@ body:not(.has-profile) .profile-panel {
 .question-list,
 .quiz-panel,
 .editor,
-.library {
+.library,
+.users-panel {
   padding: 18px;
 }
 
@@ -441,6 +444,7 @@ body:not(.has-profile) .profile-panel {
 
 .question-buttons,
 .library-list,
+.users-list,
 .topic-list,
 .manage-topic-list {
   display: grid;
@@ -950,6 +954,63 @@ textarea:focus {
 
 .library-item small {
   color: var(--muted);
+}
+
+.users-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.users-list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.user-item {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.user-item small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.user-item strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.08rem;
+}
+
+.user-credentials {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.user-credentials div {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.user-credentials dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.user-credentials dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-weight: 850;
 }
 
 .delete-btn {
